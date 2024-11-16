@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ripple Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter Tight', sans-serif; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-white">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8">Ripple Search</h1>
+        
+        <div class="mb-8">
+            <input type="text" id="searchInput" 
+                   class="w-full p-3 border border-gray-300 rounded-lg"
+                   placeholder="Enter your search query...">
+            <button onclick="startSearch()" 
+                    class="mt-4 px-6 py-2 bg-black text-white rounded-lg">
+                Search
+            </button>
+        </div>
+
+        <div class="mb-4 flex justify-between items-center">
+            <div class="space-x-4">
+                <button onclick="clearResults()" 
+                        class="px-4 py-2 border border-gray-300 rounded-lg">
+                    Clear
+                </button>
+                <button onclick="exportResults()" 
+                        class="px-4 py-2 border border-gray-300 rounded-lg">
+                    Export
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-gray-300">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border p-2">#</th>
+                        <th class="border p-2">Name</th>
+                        <th class="border p-2">Address</th>
+                        <th class="border p-2">Phone</th>
+                        <th class="border p-2">Website</th>
+                        <th class="border p-2">Email</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTable"></tbody>
+            </table>
+        </div>
+
+        <div class="mt-4 p-4 bg-gray-100 rounded-lg">
+            <h3 class="font-semibold mb-2">Logs</h3>
+            <div id="logs" class="font-mono text-sm"></div>
+        </div>
+    </div>
+
+    <script>
+        let results = [];
+
+        async function startSearch() {
+            const query = document.getElementById('searchInput').value;
+            if (!query) return;
+
+            clearLogs();
+            addLog('Starting search...');
+
+            try {
+                const response = await fetch('http://localhost:5000/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                results = data.results;
+                updateTable();
+                addLog('Search completed successfully');
+            } catch (error) {
+                addLog(`Error: ${error.message}`);
+            }
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('resultsTable');
+            tbody.innerHTML = '';
+
+            results.forEach((result, index) => {
+                const row = tbody.insertRow(0);
+                row.innerHTML = `
+                    <td class="border p-2">${index + 1}</td>
+                    <td class="border p-2">${result.name}</td>
+                    <td class="border p-2">${result.address}</td>
+                    <td class="border p-2">${result.phone}</td>
+                    <td class="border p-2">${result.website}</td>
+                    <td class="border p-2">${result.email}</td>
+                `;
+            });
+        }
+
+        function clearResults() {
+            results = [];
+            updateTable();
+            clearLogs();
+        }
+
+        async function exportResults() {
+            try {
+                const response = await fetch('http://localhost:5000/api/export');
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'ripple_search_results.csv';
+                a.click();
+            } catch (error) {
+                addLog(`Export error: ${error.message}`);
+            }
+        }
+
+        function addLog(message) {
+            const logs = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            logs.innerHTML += `<div>[${time}] ${message}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+    </script>
+</body>
+</html> 
