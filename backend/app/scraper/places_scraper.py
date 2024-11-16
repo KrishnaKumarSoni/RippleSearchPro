@@ -6,6 +6,8 @@ import random
 from typing import Dict, List, Optional
 from datetime import datetime
 from urllib.parse import quote
+import pandas as pd
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +16,10 @@ class GooglePlacesScraper:
         self.browser = None
         self.results = []
         self.headless = headless
-        
+        self.output_dir = "outputs"
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+            
     async def __aenter__(self):
         await self.setup()
         return self
@@ -49,9 +54,8 @@ class GooglePlacesScraper:
             await page.goto(search_url)
             
             page_num = 1
-            max_pages = 5
             
-            while page_num <= max_pages:
+            while True:
                 logger.info(f"Processing page {page_num}")
                 await page.wait_for_load_state('networkidle')
                 await page.wait_for_selector('.VkpGBb', timeout=30000)
@@ -95,16 +99,17 @@ class GooglePlacesScraper:
                     break
                 
                 try:
-                    await page.wait_for_timeout(1000)  # Add small delay before clicking
+                    await page.wait_for_timeout(1000)
                     await next_button.click()
                     await page.wait_for_load_state('networkidle')
-                    await page.wait_for_timeout(2000)  # Add delay after clicking
+                    await page.wait_for_timeout(2000)
                     page_num += 1
                 except Exception as e:
                     logger.error(f"Failed to navigate to next page: {str(e)}")
                     break
             
             await context.close()
+            self.results = detailed_results
             return detailed_results
             
         except Exception as e:
@@ -212,4 +217,39 @@ class GooglePlacesScraper:
         except Exception as e:
             logger.error(f"Failed to extract details: {str(e)}")
             return None
+
+    def export_to_csv(self, query: str) -> str:
+        if not self.results:
+            return None
+            
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{query.replace(' ', '_')}_{timestamp}.csv"
+        filepath = os.path.join(self.output_dir, filename)
+        
+        # Convert results to DataFrame
+        df = pd.DataFrame(self.results)
+        
+        # Reorder columns for better readability
+        column_order = [
+            'name',
+            'phone',
+            'email',  # Will be added by enrichment
+            'website',
+            'address',
+            'rating',
+            'reviews',
+            'timings',
+            'timestamp'
+        ]
+        
+        # Only include columns that exist
+        columns = [col for col in column_order if col in df.columns]
+        df = df[columns]
+        
+        # Flatten the reviews column if it exists
+        if 'reviews' in df.columns:
+            df['reviews'] = df['reviews'].apply(lambda x: '; '.join([f"{r.get('text', '')} ({r.get('rating', '')}★)" for r in x]) if x else '')
+            
+        df.to_csv(filepath, index=False, encoding='utf-8-sig')
+        return filepath
 

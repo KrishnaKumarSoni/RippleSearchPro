@@ -13,9 +13,10 @@ class WebsiteScraper:
     async def extract_contact_info(self, url: str) -> Dict[str, Optional[str]]:
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(headless=False)
                 page = await browser.new_page()
                 await page.goto(url, wait_until='networkidle')
+                logger.info(f"Scraping website: {url}")
                 
                 content = await page.content()
                 await browser.close()
